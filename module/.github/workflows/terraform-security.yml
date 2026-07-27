@@ -1,0 +1,54 @@
+name: Terraform Security & Cost Analysis
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master, dev ]
+
+jobs:
+  security-and-cost:
+    name: Terraform Security, Quality & Cost Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+
+      # 1. TFLint (Linter)
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.0
+
+      - name: Run TFLint
+        run: |
+          tflint --init
+          tflint --recursive
+
+      # 2. TFSec / Trivy (Static Analysis)
+      - name: Run TFSec Scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: dev/
+
+      # 3. Gitleaks (Secrets / Leaks Detection)
+      - name: Run Gitleaks Secrets Detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Infracost (Cloud Cost Estimates)
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost Cost Estimate
+        run: |
+          infracost breakdown --path dev/
